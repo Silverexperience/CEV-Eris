@@ -266,6 +266,11 @@
 	if(resting)
 		add_rest(INSIGHT_DESIRE_SMOKING, 0.4 * S.quality_multiplier)
 
+/datum/sanity/proc/onVape(obj/item/clothing/mask/vape/S)
+	changeLevel(SANITY_GAIN_SMOKE)
+	if(resting)
+		add_rest(INSIGHT_DESIRE_SMOKING,)
+
 /datum/sanity/proc/onSay()
 	if(world.time < say_time)
 		return

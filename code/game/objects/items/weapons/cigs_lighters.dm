@@ -530,14 +530,15 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	var/chem_volume = 100
 	var/vapetime = 0
 	var/screw = 0
-	var/super = 0
+	var/voltage = 0
 	var/emagged = 0
-	var/update = 0.2
+	var/waste = 0.2
+	var/transfer_amount = 0.2
 
 /obj/item/clothing/mask/vape/Initialize(mapload, param_color)
 	. = ..()
 	create_reagents(chem_volume, NO_REACT)
-	reagents.add_reagent(/datum/reagent/drug/nicotine, 50)
+	reagents.add_reagent("nicotine")
 	if(!param_color)
 		param_color = pick("red","blue","black","green","purple","orange")
 	icon_state = "[param_color]_vape"
@@ -551,26 +552,27 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				reagent_flags |= OPENCONTAINER
 				if(emagged)
 					add_overlay("vapeopen_high")
-				else if(super)
+				else if(voltage)
 					add_overlay("vapeopen_med")
 				else
 					add_overlay("vapeopen_low")
-		else
-			screw = FALSE
-			to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
-			reagent_flags &= ~(OPENCONTAINER)
-			cut_overlays()
+		if(screw)
+			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
+				screw = FALSE
+				to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
+				reagent_flags &= ~(OPENCONTAINER)
+				cut_overlays()
 
 	if(istype(O, /obj/item/weapon/tool/multitool))
 		if(screw && (!emagged))
-			if(!super)
+			if(!voltage)
 				cut_overlays()
-				super = 1
+				voltage = 1
 				to_chat(user, "<span class='notice'>You increase the voltage of [src].</span>")
 				add_overlay("vapeopen_med")
 			else
 				cut_overlays()
-				super = 0
+				voltage = 0
 				to_chat(user, "<span class='notice'>You decrease the voltage of [src].</span>")
 				add_overlay("vapeopen_low")
 
@@ -585,7 +587,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		if(!emagged)
 			cut_overlays()
 			emagged = 1
-			super = 0
+			voltage = 0
 			to_chat(user, "<span class='warning'>You maximize the voltage of [src].</span>")
 			add_overlay("vapeopen_high")
 			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread //for effect
@@ -612,27 +614,38 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			else //it will not start if the vape is opened.
 				to_chat(user, "<span class='warning'>You need to close the cap first!</span>")
 
-/obj/item/clothing/mask/vape/proc/hand_reagents()//had to rename to avoid duplicate error
-	if(reagents.total_volume)
-		if(iscarbon(loc))
-			var/mob/living/carbon/C = loc
-			if (src == C.wear_mask) // if it's in the human/monkey mouth, transfer reagents to the mob
-				reagents.trans_to_mob(C, REM, CHEM_INGEST, update)
-				if(reagents.get_reagent_amount("plasma"))
-					C.adjust_fire_stacks(2)
-					C.IgniteMob()
-				if(reagents.get_reagent_amount("fuel"))
-					C.adjust_fire_stacks(2)
-					C.IgniteMob()
+/obj/item/clothing/mask/vape/dropped(mob/user)
+	. = ..()
+	if(user.get_item_by_slot(SLOT_MASK) == src)
+		reagent_flags |= NO_REACT
+		STOP_PROCESSING(SSobj, src)
 
-				if(reagents.get_reagent_amount(/datum/reagent/toxin/plasma)) // the plasma explodes when exposed to fire
+/obj/item/clothing/mask/vape/proc/hand_reagents()
+	var/turf/location = get_turf(src)
+	if(location)
+		location.hotspot_expose(700, 5)
+	var/mob/living/carbon/human/C = loc
+	if(istype(C))
+		C.sanity.onVape(src)
+	if(reagents && reagents.total_volume) // check if it has any reagents at all
+		if(ishuman(loc))
+			if (src == C.wear_mask && C.check_has_mouth()) // if it's in the human/monkey mouth, transfer reagents to the mob
+				if(reagents.get_reagent_amount("plasma"))
 					var/datum/effect/effect/system/reagents_explosion/e = new()
 					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)
 					e.start()
 					qdel(src)
-				return
-		reagents.remove_any(reagents.total_volume)
-
+				if(reagents.get_reagent_amount("fuel"))
+					var/datum/effect/effect/system/reagents_explosion/e = new()
+					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)						
+					e.start()
+					qdel(src)
+				else
+					reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount) 
+		else 
+			reagents.remove_any(waste)
+				
+	
 /obj/item/clothing/mask/vape/Process()
 	var/mob/living/M = loc
 
@@ -649,7 +662,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		return
 	//open flame removed because vapes are a closed system, they won't light anything on fire
 
-	if(super && vapetime > 3)
+	if(voltage && vapetime > 3)
 		var/datum/effect/effect/system/smoke_spread/s = new
 		s.set_up(reagents, 1, 24, loc)
 		s.start()
