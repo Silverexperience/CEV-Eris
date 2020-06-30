@@ -530,10 +530,10 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	var/chem_volume = 100
 	var/vapetime = 0
 	var/screw = 0
-	var/voltage = 0
 	var/emagged = 0
 	var/waste = 0.2
 	var/transfer_amount = 0.2
+	var/voltage = 0
 
 /obj/item/clothing/mask/vape/Initialize(mapload, param_color)
 	. = ..()
@@ -550,13 +550,8 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				screw = TRUE
 				to_chat(user, "<span class='notice'>You open the cap on [src].</span>")
 				reagent_flags |= OPENCONTAINER
-				if(emagged)
-					add_overlay("vapeopen_high")
-				else if(voltage)
-					add_overlay("vapeopen_med")
-				else
-					add_overlay("vapeopen_low")
-		if(screw)
+
+		else
 			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
 				screw = FALSE
 				to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
@@ -567,11 +562,13 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		if(screw && (!emagged))
 			if(!voltage)
 				cut_overlays()
+				transfer_amount = 0.5
 				voltage = 1
 				to_chat(user, "<span class='notice'>You increase the voltage of [src].</span>")
 				add_overlay("vapeopen_med")
 			else
 				cut_overlays()
+				transfer_amount = 0.2
 				voltage = 0
 				to_chat(user, "<span class='notice'>You decrease the voltage of [src].</span>")
 				add_overlay("vapeopen_low")
@@ -582,12 +579,12 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			..()
 
 
-/obj/item/clothing/mask/vape/emag_act(mob/user)
+/obj/item/clothing/mask/vape/emag_act(var/remaining_charges, mob/user)
 	if(screw)
 		if(!emagged)
 			cut_overlays()
 			emagged = 1
-			voltage = 0
+			transfer_amount = 0.5
 			to_chat(user, "<span class='warning'>You maximize the voltage of [src].</span>")
 			add_overlay("vapeopen_high")
 			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread //for effect
@@ -614,7 +611,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			else //it will not start if the vape is opened.
 				to_chat(user, "<span class='warning'>You need to close the cap first!</span>")
 
-/obj/item/clothing/mask/vape/dropped(mob/user)
+/obj/item/clothing/mask/vape/pickup(mob/user)
 	. = ..()
 	if(user.get_item_by_slot(SLOT_MASK) == src)
 		reagent_flags |= NO_REACT
@@ -637,15 +634,15 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 					qdel(src)
 				if(reagents.get_reagent_amount("fuel"))
 					var/datum/effect/effect/system/reagents_explosion/e = new()
-					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)						
+					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)
 					e.start()
 					qdel(src)
 				else
-					reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount) 
-		else 
+					reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount)
+		else
 			reagents.remove_any(waste)
-				
-	
+
+
 /obj/item/clothing/mask/vape/Process()
 	var/mob/living/M = loc
 
@@ -662,17 +659,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		return
 	//open flame removed because vapes are a closed system, they won't light anything on fire
 
-	if(voltage && vapetime > 3)
-		var/datum/effect/effect/system/smoke_spread/s = new
-		s.set_up(reagents, 1, 24, loc)
-		s.start()
-		vapetime = 0
-
-	if((emagged = 1) && vapetime > 3)
-		var/datum/effect/effect/system/smoke_spread/s = new
-		s.set_up(reagents, 4, 24, loc)
-		s.start()
-		vapetime = 0
+	if(emagged)
 		if(prob(5))//small chance for the vape to break and deal damage if it's emagged
 			playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
 			M.apply_damage(20, BURN, BP_HEAD)
