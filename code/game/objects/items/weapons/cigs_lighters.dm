@@ -535,39 +535,58 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	var/transfer_amount = 0.2
 	var/voltage = 0
 
+	var/charge_per_use = 1 
+	var/obj/item/weapon/cell/cell
+	var/suitable_cell = /obj/item/weapon/cell/small
+
+
 /obj/item/clothing/mask/vape/Initialize(mapload, param_color)
 	. = ..()
 	create_reagents(chem_volume, NO_REACT)
-	reagents.add_reagent("nicotine")
-	if(!param_color)
-		param_color = pick("red","blue","black","green","purple","orange")
-	icon_state = "[param_color]_vape"
+	reagents.add_reagent("nicotine", 100)
+	if(!cell && suitable_cell)
+		cell = new suitable_cell(src)
+
+/obj/item/clothing/mask/vape/get_cell()
+	return cell
+
+/obj/item/clothing/mask/vape/handle_atom_del(atom/A)
+	..()
+	if(A == cell)
+		cell = null
+		update_icon()
+
+/obj/item/clothing/mask/vape/MouseDrop(over_object)
+	if(screw)
+		if((loc == usr) && istype(over_object, /obj/screen/inventory/hand) && eject_item(cell, usr))
+			cell = null
 
 /obj/item/clothing/mask/vape/attackby(obj/item/O, mob/user, params)
+	if(istype(O, suitable_cell) && !cell && insert_item(O, user))
+		cell = O
 	if(QUALITY_SCREW_DRIVING in O.tool_qualities)
 		if(!screw)
 			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
 				screw = TRUE
 				to_chat(user, "<span class='notice'>You open the cap on [src].</span>")
 				reagent_flags |= OPENCONTAINER
+				update_icon()
 
 		else
 			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
 				screw = FALSE
 				to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
 				reagent_flags &= ~(OPENCONTAINER)
-				cut_overlays()
+				update_icon()
 
 	if(istype(O, /obj/item/weapon/tool/multitool))
 		if(screw && (!emagged))
 			if(!voltage)
-				cut_overlays()
 				transfer_amount = 0.5
 				voltage = 1
 				to_chat(user, "<span class='notice'>You increase the voltage of [src].</span>")
 				add_overlay("vapeopen_med")
 			else
-				cut_overlays()
 				transfer_amount = 0.2
 				voltage = 0
 				to_chat(user, "<span class='notice'>You decrease the voltage of [src].</span>")
@@ -578,15 +597,12 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		else
 			..()
 
-
 /obj/item/clothing/mask/vape/emag_act(var/remaining_charges, mob/user)
 	if(screw)
 		if(!emagged)
-			cut_overlays()
 			emagged = 1
 			transfer_amount = 0.5
 			to_chat(user, "<span class='warning'>You maximize the voltage of [src].</span>")
-			add_overlay("vapeopen_high")
 			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread //for effect
 			sp.set_up(5, 1, src)
 			sp.start()
@@ -608,68 +624,62 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				to_chat(user, "<span class='notice'>You start puffing on the vape.</span>")
 				reagent_flags &= ~(NO_REACT)
 				START_PROCESSING(SSobj, src)
-			else //it will not start if the vape is opened.
+			else 	//it will not start if the vape is opened.
 				to_chat(user, "<span class='warning'>You need to close the cap first!</span>")
 
-/obj/item/clothing/mask/vape/pickup(mob/user)
+/obj/item/clothing/mask/vape/dropped(mob/user)
 	. = ..()
 	if(user.get_item_by_slot(SLOT_MASK) == src)
 		reagent_flags |= NO_REACT
 		STOP_PROCESSING(SSobj, src)
 
 /obj/item/clothing/mask/vape/proc/hand_reagents()
-	var/turf/location = get_turf(src)
-	if(location)
-		location.hotspot_expose(700, 5)
 	var/mob/living/carbon/human/C = loc
-	if(istype(C))
-		C.sanity.onVape(src)
 	if(reagents && reagents.total_volume) // check if it has any reagents at all
-		if(ishuman(loc))
-			if (src == C.wear_mask && C.check_has_mouth()) // if it's in the human/monkey mouth, transfer reagents to the mob
-				if(reagents.get_reagent_amount("plasma"))
-					var/datum/effect/effect/system/reagents_explosion/e = new()
-					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)
-					e.start()
-					qdel(src)
-				if(reagents.get_reagent_amount("fuel"))
-					var/datum/effect/effect/system/reagents_explosion/e = new()
-					e.set_up(round(reagents.get_reagent_amount(/datum/reagent/toxin/plasma) / 2.5, 1), get_turf(src), 0, 0)
-					e.start()
-					qdel(src)
-				else
-					reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount)
+		if(ishuman(C))
+			if(reagents.get_reagent_amount("plasma"))
+				var/datum/effect/effect/system/reagents_explosion/e = new()
+				C.apply_damage(20, BURN, BP_HEAD)
+				C.Stun(5)
+				e.set_up(round(reagents.get_reagent_amount("plasma") / 2.5, 1), get_turf(src), 0, 0)
+				e.start()
+				qdel(src)
+			if(reagents.get_reagent_amount("fuel"))
+				var/datum/effect/effect/system/reagents_explosion/e = new()
+				C.apply_damage(20, BURN, BP_HEAD)
+				C.Stun(5)
+				e.set_up(round(reagents.get_reagent_amount("fuel") / 5, 1), get_turf(src), 0, 0)
+				e.start()
+				qdel(src)
+			else
+				cell.use(charge_per_use)
+				reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount)
 		else
 			reagents.remove_any(waste)
-
+			
 
 /obj/item/clothing/mask/vape/Process()
 	var/mob/living/M = loc
-
-	if(isliving(loc))
-		M.IgniteMob()
-
-	vapetime++
-
 	if(!reagents.total_volume)
 		if(ismob(loc))
 			to_chat(M, "<span class='warning'>[src] is empty!</span>")
 			STOP_PROCESSING(SSobj, src)
 			//it's reusable so it won't unequip when empty
 		return
-	//open flame removed because vapes are a closed system, they won't light anything on fire
 
 	if(emagged)
-		if(prob(5))//small chance for the vape to break and deal damage if it's emagged
-			playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
-			M.apply_damage(20, BURN, BP_HEAD)
-			M.Stun(5)
-			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread
-			sp.set_up(5, 1, src)
-			sp.start()
-			to_chat(M, "<span class='userdanger'>[src] suddenly explodes in your mouth!</span>")
-			qdel(src)
-			return
-
-	if(reagents && reagents.total_volume)
-		hand_reagents()
+		playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
+		M.apply_damage(20, BURN, BP_HEAD)
+		M.Stun(5)
+		to_chat(M, "<span class='userdanger'>[src] suddenly explodes in your mouth!</span>")
+		qdel(src)
+		return
+	
+	if(!cell || !cell.checked_use(charge_per_use))
+		to_chat(M, SPAN_WARNING("[src] battery is dead or missing."))
+		STOP_PROCESSING(SSobj, src)
+		return
+	
+	if(cell || cell.checked_use(charge_per_use))
+		if(reagents && reagents.total_volume)
+			hand_reagents()
