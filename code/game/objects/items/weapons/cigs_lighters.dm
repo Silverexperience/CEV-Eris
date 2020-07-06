@@ -8,6 +8,7 @@ CIGARS
 SMOKING PIPES
 CHEAP LIGHTERS
 ZIPPO
+VAPE
 
 CIGARETTE PACKETS ARE IN FANCY.DM
 */
@@ -539,8 +540,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	var/obj/item/weapon/cell/cell
 	var/suitable_cell = /obj/item/weapon/cell/small
 
-
-/obj/item/clothing/mask/vape/Initialize(mapload, param_color)
+/obj/item/clothing/mask/vape/Initialize(mapload)
 	. = ..()
 	create_reagents(chem_volume, NO_REACT)
 	reagents.add_reagent("nicotine", 70)
@@ -563,7 +563,10 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 
 /obj/item/clothing/mask/vape/attackby(obj/item/O, mob/user, params)
 	if(istype(O, suitable_cell) && !cell && insert_item(O, user))
-		cell = O
+		if(screw)
+			cell = O
+		else
+			to_chat(user, "<span class='notice'>You need to close the cap of[src].</span>")
 	if(QUALITY_SCREW_DRIVING in O.tool_qualities)
 		if(!screw)
 			if(O.use_tool(user, src, WORKTIME_INSTANT, QUALITY_SCREW_DRIVING, FAILCHANCE_EASY, required_stat = STAT_MEC))
@@ -571,9 +574,8 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				to_chat(user, "<span class='notice'>You open the cap on [src].</span>")
 				reagent_flags |= OPENCONTAINER
 				update_icon()
-
 		else
-			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_EASY, required_stat = STAT_MEC))
+			if(O.use_tool(user, src, WORKTIME_INSTANT, QUALITY_SCREW_DRIVING, FAILCHANCE_EASY, required_stat = STAT_MEC))
 				screw = FALSE
 				to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
 				reagent_flags &= ~(OPENCONTAINER)
@@ -582,15 +584,13 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	if(istype(O, /obj/item/weapon/tool/multitool))
 		if(screw && (!emagged))
 			if(!voltage)
-				transfer_amount = 0.5
+				transfer_amount = transfer_amount*2
 				voltage = 1
 				to_chat(user, "<span class='notice'>You increase the voltage of [src].</span>")
-				add_overlay("vapeopen_med")
 			else
-				transfer_amount = 0.2
+				transfer_amount = transfer_amount/2
 				voltage = 0
 				to_chat(user, "<span class='notice'>You decrease the voltage of [src].</span>")
-				add_overlay("vapeopen_low")
 
 		if(screw && (emagged))
 			to_chat(user, "<span class='warning'>[src] can't be modified!</span>")
@@ -601,7 +601,6 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	if(screw)
 		if(!emagged)
 			emagged = 1
-			transfer_amount = 0.5
 			to_chat(user, "<span class='warning'>You maximize the voltage of [src].</span>")
 			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread //for effect
 			sp.set_up(5, 1, src)
@@ -625,7 +624,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				to_chat(user, "<span class='notice'>You start puffing on the vape.</span>")
 				reagent_flags &= ~(NO_REACT)
 				START_PROCESSING(SSobj, src)
-			else 	//it will not start if the vape is opened.
+			else
 				to_chat(user, "<span class='warning'>You need to close the cap first!</span>")
 		if(slot_l_hand, slot_r_hand)
 			reagent_flags |= NO_REACT
@@ -633,10 +632,11 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			
 /obj/item/clothing/mask/vape/proc/hand_reagents()
 	var/mob/living/carbon/human/C = loc
-	if(reagents && reagents.total_volume) // check if it has any reagents at all
+	if(reagents && reagents.total_volume)
 		if(ishuman(C))
 			if(reagents.get_reagent_amount("plasma"))
 				var/datum/effect/effect/system/reagents_explosion/e = new()
+				playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
 				C.apply_damage(20, BURN, BP_HEAD)
 				C.Stun(5)
 				e.set_up(round(reagents.get_reagent_amount("plasma") / 2.5, 1), get_turf(src), 0, 0)
@@ -644,6 +644,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				qdel(src)
 			if(reagents.get_reagent_amount("fuel"))
 				var/datum/effect/effect/system/reagents_explosion/e = new()
+				playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
 				C.apply_damage(20, BURN, BP_HEAD)
 				C.Stun(5)
 				e.set_up(round(reagents.get_reagent_amount("fuel") / 5, 1), get_turf(src), 0, 0)
@@ -686,6 +687,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			to_chat(M, "<span class='userdanger'>[src] suddenly explodes in your mouth!</span>")
 			qdel(src)
 			return
+	
 	if(!cell || !cell.checked_use(charge_per_use))
 		to_chat(M, SPAN_WARNING("[src] battery is dead or missing."))
 		STOP_PROCESSING(SSobj, src)
@@ -694,3 +696,13 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	if(cell || cell.checked_use(charge_per_use))
 		if(reagents && reagents.total_volume)
 			hand_reagents()
+
+/obj/item/clothing/mask/vape/better
+	name = "\improper B-Cigarette"
+	desc = "A classy and highly sophisticated electronic cigarette, for classy and dignified gentlemen. A warning label reads \"Warning: Do not fill with flammable materials.\" It seems different from the others"
+	
+/obj/item/clothing/mask/vape/better/Initialize(mapload)
+	. = ..()
+	waste = pick(0.4, 0.7)
+	transfer_amount = pick(0.3, 1)
+	charge_per_use = pick(0.5, 0.9)
