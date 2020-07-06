@@ -652,14 +652,20 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				e.start()
 				qdel(src)
 			else
-				cell.use(charge_per_use)
 				reagents.trans_to_mob(C, REM, CHEM_INGEST, transfer_amount)
+				C.sanity.onVape(src)
 		else
 			reagents.remove_any(waste)
-			
+			cell.use(charge_per_use)
 
 /obj/item/clothing/mask/vape/Process()
 	var/mob/living/M = loc
+	
+	if(isliving(loc))
+		M.IgniteMob()
+
+	vapetime++
+		
 	if(!reagents.total_volume)
 		if(ismob(loc))
 			to_chat(M, "<span class='warning'>[src] is empty!</span>")
@@ -667,14 +673,21 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 			//it's reusable so it won't unequip when empty
 		return
 
-	if(emagged)
-		playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
-		M.apply_damage(20, BURN, BP_HEAD)
-		M.Stun(5)
-		to_chat(M, "<span class='userdanger'>[src] suddenly explodes in your mouth!</span>")
-		qdel(src)
-		return
-	
+	if(emagged && vapetime > 3)
+		var/datum/effect/effect/system/smoke_spread/chem/s = new /datum/effect/effect/system/smoke_spread/chem
+		s.set_up(reagents, 4, 24, loc)
+		s.start()
+		vapetime = 0
+		if(prob(5))//small chance for the vape to break and deal damage if it's emagged
+			playsound(get_turf(src), 'sound/effects/Explosion1.ogg', 50, FALSE)
+			M.apply_damage(20, BURN, BP_HEAD)
+			M.Stun(5)
+			var/datum/effect/effect/system/spark_spread/sp = new /datum/effect/effect/system/spark_spread //for effect
+			sp.set_up(5, 1, src)
+			sp.start()
+			to_chat(M, "<span class='userdanger'>[src] suddenly explodes in your mouth!</span>")
+			qdel(src)
+			return
 	if(!cell || !cell.checked_use(charge_per_use))
 		to_chat(M, SPAN_WARNING("[src] battery is dead or missing."))
 		STOP_PROCESSING(SSobj, src)
