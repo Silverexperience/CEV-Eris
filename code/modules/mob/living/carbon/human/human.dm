@@ -1534,38 +1534,3 @@ var/list/rank_prefix = list(\
 		return TRUE
 	else
 		return FALSE
-
-// Return the item currently in the slot ID
-/mob/living/carbon/human/get_item_by_slot(slot_id)
-	switch(slot_id)
-		if(SLOT_BACK)
-			return back
-		if(SLOT_MASK)
-			return wear_mask
-		if(SLOT_BELT)
-			return belt
-		if(SLOT_ID)
-			return wear_id
-		if(SLOT_TWOEARS)
-			return l_ear && r_ear
-		if(SLOT_EYES)
-			return glasses
-		if(SLOT_GLOVES)
-			return gloves
-		if(SLOT_HEAD)
-			return head
-		if(SLOT_FEET)
-			return shoes
-		if(SLOT_OCLOTHING)
-			return wear_suit
-		if(SLOT_ICLOTHING)
-			return w_uniform
-		if(SLOT_POCKET)
-			return l_store && r_store
-		if(SLOT_DENYPOCKET)
-			return s_store
-		if(SLOT_ACCESSORY_BUFFER)
-			return accessory_buffer
-		if(SLOT_HOLSTER) 
-			return holster
-	return null

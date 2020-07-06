@@ -531,7 +531,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 	var/vapetime = 0
 	var/screw = 0
 	var/emagged = 0
-	var/waste = 0.2
+	var/waste = 0.8
 	var/transfer_amount = 0.2
 	var/voltage = 0
 
@@ -543,7 +543,7 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 /obj/item/clothing/mask/vape/Initialize(mapload, param_color)
 	. = ..()
 	create_reagents(chem_volume, NO_REACT)
-	reagents.add_reagent("nicotine", 100)
+	reagents.add_reagent("nicotine", 70)
 	if(!cell && suitable_cell)
 		cell = new suitable_cell(src)
 
@@ -566,14 +566,14 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		cell = O
 	if(QUALITY_SCREW_DRIVING in O.tool_qualities)
 		if(!screw)
-			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
+			if(O.use_tool(user, src, WORKTIME_INSTANT, QUALITY_SCREW_DRIVING, FAILCHANCE_EASY, required_stat = STAT_MEC))
 				screw = TRUE
 				to_chat(user, "<span class='notice'>You open the cap on [src].</span>")
 				reagent_flags |= OPENCONTAINER
 				update_icon()
 
 		else
-			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_NORMAL, required_stat = STAT_MEC))
+			if(O.use_tool(user, src, WORKTIME_NORMAL, QUALITY_SCREW_DRIVING, FAILCHANCE_EASY, required_stat = STAT_MEC))
 				screw = FALSE
 				to_chat(user, "<span class='notice'>You close the cap on [src].</span>")
 				reagent_flags &= ~(OPENCONTAINER)
@@ -612,9 +612,10 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 		to_chat(user, "<span class='warning'>You need to open the cap to do that!</span>")
 
 /obj/item/clothing/mask/vape/attack_self(mob/user)
-	if(reagents.total_volume > 0)
-		to_chat(user, "<span class='notice'>You empty [src] of all reagents.</span>")
-		reagents.clear_reagents()
+	if(screw)
+		if(reagents.total_volume > 0)
+			to_chat(user, "<span class='notice'>You empty [src] of all reagents.</span>")
+			reagents.clear_reagents()
 
 /obj/item/clothing/mask/vape/equipped(mob/user, slot)
 	. = ..()
@@ -626,13 +627,10 @@ CIGARETTE PACKETS ARE IN FANCY.DM
 				START_PROCESSING(SSobj, src)
 			else 	//it will not start if the vape is opened.
 				to_chat(user, "<span class='warning'>You need to close the cap first!</span>")
-
-/obj/item/clothing/mask/vape/dropped(mob/user)
-	. = ..()
-	if(user.get_item_by_slot(SLOT_MASK) == src)
-		reagent_flags |= NO_REACT
-		STOP_PROCESSING(SSobj, src)
-
+		if(slot_l_hand, slot_r_hand)
+			reagent_flags |= NO_REACT
+			STOP_PROCESSING(SSobj, src)
+			
 /obj/item/clothing/mask/vape/proc/hand_reagents()
 	var/mob/living/carbon/human/C = loc
 	if(reagents && reagents.total_volume) // check if it has any reagents at all
